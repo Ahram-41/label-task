@@ -161,12 +161,16 @@ if __name__ == "__main__":
     if not api_key:
         raise ValueError("Please set OPENAI_API_KEY environment variable")
     print(map_response[CORE_OR_GENERAL_AI_APPLICATION])
-    xls_path = "/Users/wbik/Downloads/label-task/250425aistartup_sdc_crunch_des_smallsample.xls"
+    xls_path = os.getenv("XLS_PATH")
+    if not xls_path:
+        raise ValueError("Please set XLS_PATH environment variable")
+    
     # prompt_name = "base_prompt"
     # iea = LabelTask(base_prompt)
     # prompt_name = "modified_prompt"
     # iea = LabelTask(modified_prompt)
     prompt_name = "additional_prompt"
     iea = LabelTask(additional_prompt)
+
     output_path = f"small_sample_label_{prompt_name}.csv"
     ans = iea.process_xls(xls_path, output_path)

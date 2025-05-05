@@ -1,0 +1,11 @@
+matplotlib 
+seaborn 
+scipy
+numpy
+pandas
+langchain-community
+langchain-openai
+tqdm
+python-dotenv
+xlrd
+
