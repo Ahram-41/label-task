@@ -9,19 +9,18 @@ from typing import Dict, List
 from dotenv import load_dotenv
 import os
 import asyncio
+import time
 from tqdm import tqdm
 
 load_dotenv()
 map_response = {
     CORE_OR_GENERAL_AI_APPLICATION: Core_or_General_AI_Application_Response,
     IS_DATA_CENTRIC: Is_Data_Centric_Response,
-    IS_NICHE_OR_BROAD_MARKET: Is_Niche_or_Broad_Market_Response,
+    IS_NICHE_OR_BROAD_MARKET_A: Is_Niche_or_Broad_Market_A_Response,
+    IS_NICHE_OR_BROAD_MARKET_B: Is_Niche_or_Broad_Market_B_Response,
     IS_PRODUCT_OR_PLATFORM: Is_Product_or_Platform_Response,
-    AI_STARTUP_TYPE2: AI_startup_type_Response,
-    IS_DATA_CENTRIC2: Is_Data_Centric_Response2,
-    IS_NICHE_OR_BROAD_MARKET2: Is_Niche_or_Broad_Market_Response2,
-    IS_PRODUCT_OR_PLATFORM2: Is_Product_or_Platform_Response2,
-    AI_STARTUP_TYPE3: AI_startup_type_Response3,
+    HARDWARE_OR_FOUNDATION_MODEL: AI_startup_type_Response,
+    VERTICAL_OR_HORIZONTAL: AI_startup_type_Response3,
     DEVELOPER_OR_INTEGRATOR: Developer_or_Integrator_Response,
     AI_NATIVE_OR_AUGMENTED: AI_Native_or_Augmented_Response,
     AUTOMATION_DEPTH: Automation_Depth_Response
@@ -33,7 +32,8 @@ class LabelTask:
         api_key = os.getenv("OPENAI_API_KEY")
         self.llm = ChatOpenAI(
             model_name="gpt-4o",
-            openai_api_key=api_key
+            openai_api_key=api_key,
+            max_tokens=200 # limit the output length to 200 tokens
         )
         self.prompts = prompts
         
@@ -54,7 +54,6 @@ class LabelTask:
             print(f"Error analyzing content: {str(e)}")
             # Create a dictionary directly for error case
             return {
-                "company_type": -1,
                 "reasoning": "Error in analysis"
             }
 
@@ -72,14 +71,13 @@ class LabelTask:
         # Pre-process articles to include formatted content
         articles = df.to_dict('records')
         for prompt in tqdm(self.prompts):
-            articles = self.run_analysis(articles, prompt)
+            articles = self.run_analysis(articles, prompt, output_path)
 
         self.save_to_csv(articles, output_path)
         return articles
     
-    def run_analysis(self, articles: List[Dict], prompt: str):
-        # processed_articles = self._format_articles_content(articles)
-        ans = asyncio.run(llm_articles(articles, self.llm, prompt))
+    def run_analysis(self, articles: List[Dict], prompt: str, output_path: str = None):
+        ans = asyncio.run(llm_articles(articles, self.llm, prompt, output_path=output_path))
         return ans
 
     def save_to_csv(self, ans: List[Dict], output_path: str):
@@ -88,21 +86,9 @@ class LabelTask:
         df = pd.DataFrame(ans)
         df.to_csv(output_path.replace('.json', '.csv'), index=False)
         print(f"Analysis complete. Results saved to {output_path}")
-    
-    def _format_articles_content(self, articles: List[Dict]) -> List[Dict]:
-        """
-        Format the content of each article by combining specified fields and adding date information.
-        """
-        processed_articles = []
-        for article in articles:
-            processed_article = article.copy()
-            content = article['investee_company_long_business_d']
-            processed_article['content'] = content
-            processed_articles.append(processed_article)
-        return processed_articles
 
 
-async def llm_articles(articles: List[Dict], model, prompt, batch_size: int = 10):
+async def llm_articles(articles: List[Dict], model, prompt, batch_size: int = 50, output_path: str = None):
     """
     Process a list of articles using an LLM model with flexible schema handling.
     
@@ -110,6 +96,7 @@ async def llm_articles(articles: List[Dict], model, prompt, batch_size: int = 10
         articles: List of article dictionaries with 'formatted_content' field
         model: LLM model to use for processing
         batch_size: Number of articles to process in each batch
+        output_path: Path to save incremental results
         
     Returns:
         List of processed articles with analysis
@@ -124,15 +111,22 @@ async def llm_articles(articles: List[Dict], model, prompt, batch_size: int = 10
     )
     chain = prompt | model | parser
     
-    
     async def batch_process_text(texts: List):
-        return await chain.abatch(texts)
+        return await chain.abatch(texts, return_exceptions=True) # return exceptions to handle errors
         
     # Create a list to store all answers
     ans = []
     
+    # Initialize CSV file with headers if output_path is provided
+    csv_path = output_path.replace('.json', '.csv') if output_path else None
+    if output_path:
+        # Create an empty DataFrame to initialize the CSV with headers
+        pd.DataFrame(columns=[]).to_csv(csv_path, index=False, mode='w')
+    
     for i in range(0, len(articles), batch_size):
         batch = articles[i:i + batch_size]
+        batch_results = []
+        
         try:
             # Prepare batch inputs using the formatted content
             batch_inputs = [{"content": article['investee_company_long_business_d']} for article in batch]
@@ -148,29 +142,42 @@ async def llm_articles(articles: List[Dict], model, prompt, batch_size: int = 10
                 # Create result entry with analysis and preserve all original article fields
                 result_entry = {**response, **article}
                 ans.append(result_entry)
+                batch_results.append(result_entry)
+            
+            # Save incremental results after each batch if output_path is provided
+            if output_path and batch_results:
+                # Append batch results to CSV
+                batch_df = pd.DataFrame(batch_results)
+                
+                # For the first batch, write with headers
+                if i == 0:
+                    batch_df.to_csv(csv_path, index=False, mode='w')
+                else:
+                    # For subsequent batches, append without headers
+                    batch_df.to_csv(csv_path, index=False, mode='a', header=False)
+                
+                print(f"Batch {i//batch_size + 1} complete. Results appended to {csv_path}")
                 
         except Exception as e:
             print(f"Error processing batch starting at index {i}: {str(e)}")
+            time.sleep(20)
             continue
 
     return ans
 
 if __name__ == "__main__":
-    # Replace with your OpenAI API key
+
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("Please set OPENAI_API_KEY environment variable")
-    print(map_response[CORE_OR_GENERAL_AI_APPLICATION])
     xls_path = os.getenv("XLS_PATH")
     if not xls_path:
         raise ValueError("Please set XLS_PATH environment variable")
     
     # prompt_name = "base_prompt"
     # iea = LabelTask(base_prompt)
-    # prompt_name = "modified_prompt"
-    # iea = LabelTask(modified_prompt)
     prompt_name = "additional_prompt"
     iea = LabelTask(additional_prompt)
 
-    output_path = f"small_sample_label_{prompt_name}.csv"
+    output_path = f"full_sample_label_{prompt_name}.csv"
     ans = iea.process_xls(xls_path, output_path)
