@@ -33,62 +33,63 @@ class LabelTask:
         self.llm = ChatOpenAI(
             model_name="gpt-4o",
             openai_api_key=api_key,
-            max_tokens=200 # limit the output length to 200 tokens
+            max_tokens=300 # limit the output length to 200 tokens
         )
         self.prompts = prompts
         
-    def analyze_content(self, content: str, prompt: str) -> Dict:
-        try:
-            parser = JsonOutputParser(pydantic_object=map_response[prompt])
-            prompt = PromptTemplate(
-                template=prompt,
-                input_variables=["content"],
-                partial_variables={"format_instructions": parser.get_format_instructions()}
-            )
-            
-            chain = (prompt | self.llm | parser)
-            result = chain.invoke({"content": content})
-            return result
-            
-        except Exception as e:
-            print(f"Error analyzing content: {str(e)}")
-            # Create a dictionary directly for error case
-            return {
-                "reasoning": "Error in analysis"
-            }
 
-    def process_xls(self, xls_path: str, output_path: str)->List[Dict]:
+    def process_xls(self, xls_path: str, output_path: str, start_index: int = 0)->List[Dict]:
         """
         Process CSV file and analyze each article's content with flexible field mapping.
         
         Args:
             xls_path: Path to the xls file
-            output_path: Path to save the JSON output and csv file
+            output_path: Path to save the csv file
+            start_index: Index to start processing from (default: 0)
         """
         # Read xls
         df = pd.read_excel(xls_path)
         
         # Pre-process articles to include formatted content
         articles = df.to_dict('records')
-        for prompt in tqdm(self.prompts):
+        
+        # If starting from a specific index, slice the articles list
+        append_mode = start_index > 0
+        if append_mode:
+            articles = articles[start_index:]
+            print(f"Starting processing from index {start_index} ({len(articles)} articles remaining)")
+            
+        for i, prompt in enumerate(tqdm(self.prompts)):
             articles = self.run_analysis(articles, prompt, output_path)
-
-        self.save_to_csv(articles, output_path)
+            output_path = output_path.replace('.csv', f'_{i}.csv') # create several check points
         return articles
     
     def run_analysis(self, articles: List[Dict], prompt: str, output_path: str = None):
         ans = asyncio.run(llm_articles(articles, self.llm, prompt, output_path=output_path))
         return ans
 
-    def save_to_csv(self, ans: List[Dict], output_path: str):
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(ans, f, ensure_ascii=False, indent=4)
-        df = pd.DataFrame(ans)
-        df.to_csv(output_path.replace('.json', '.csv'), index=False)
-        print(f"Analysis complete. Results saved to {output_path}")
 
+def analyze_content(llm, content: str, prompt: str) -> Dict:
+    try:
+        parser = JsonOutputParser(pydantic_object=map_response[prompt])
+        prompt = PromptTemplate(
+            template=prompt,
+            input_variables=["content"],
+            partial_variables={"format_instructions": parser.get_format_instructions()}
+        )
+        
+        chain = (prompt | llm | parser)
+        result = chain.invoke({"content": content})
+        return result
+        
+    except Exception as e:
+        print(f"Error analyzing content: {str(e)}")
+        # Create a dictionary directly for error case
+        return {
+            "reasoning": "Error in analysis"
+        }
 
-async def llm_articles(articles: List[Dict], model, prompt, batch_size: int = 50, output_path: str = None):
+async def llm_articles(articles: List[Dict], model, prompt_name, batch_size: int = 50, output_path: str = None):
     """
     Process a list of articles using an LLM model with flexible schema handling.
     
@@ -102,45 +103,65 @@ async def llm_articles(articles: List[Dict], model, prompt, batch_size: int = 50
         List of processed articles with analysis
     """
     # Configure the output parser
-    parser = JsonOutputParser(pydantic_object=map_response[prompt])
+    parser = JsonOutputParser(pydantic_object=map_response[prompt_name])
     
     prompt = PromptTemplate(
-        template=prompt,
+        template=prompt_name,
         input_variables=["content"],
         partial_variables={"format_instructions": parser.get_format_instructions()}
     )
     chain = prompt | model | parser
+    expected_keys = map_response[prompt_name].schema()['properties'].keys()
     
     async def batch_process_text(texts: List):
         return await chain.abatch(texts, return_exceptions=True) # return exceptions to handle errors
         
-    # Create a list to store all answers
     ans = []
     
-    # Initialize CSV file with headers if output_path is provided
-    csv_path = output_path.replace('.json', '.csv') if output_path else None
-    if output_path:
-        # Create an empty DataFrame to initialize the CSV with headers
-        pd.DataFrame(columns=[]).to_csv(csv_path, index=False, mode='w')
     
     for i in range(0, len(articles), batch_size):
         batch = articles[i:i + batch_size]
         batch_results = []
         
+        batch_inputs = [{"content": article['investee_company_long_business_d']} for article in batch]
         try:
-            # Prepare batch inputs using the formatted content
-            batch_inputs = [{"content": article['investee_company_long_business_d']} for article in batch]
-            
             # Process the batch
             batch_responses = await batch_process_text(batch_inputs)
-            
             # Process responses and add metadata
             for j, response in enumerate(batch_responses):
                 article = batch[j]
                 print(f"\n=== Article {i + j + 1}/{len(articles)} ===")
                 
-                # Create result entry with analysis and preserve all original article fields
-                result_entry = {**response, **article}
+                try:
+                    # If response is an exception, create an error entry
+                    if isinstance(response, Exception):
+                        # Create a failed entry with all expected fields as None
+                        analysis_data = {key: None for key in expected_keys}
+                        result_entry = {
+                            **analysis_data,
+                            **article,
+                            'error': str(response),
+                            'status': 'failed'
+                        }
+                    else:
+                        # For successful cases, ensure error field exists but is None
+                        result_entry = {
+                            **response,
+                            **article,
+                            'error': None,
+                            'status': 'success'
+
+                        }
+                except Exception as e:
+                    # Create a failed entry with all expected fields as None
+                    analysis_data = {key: "Invalid response" for key in expected_keys}
+                    result_entry = {
+                        **analysis_data,
+                        **article,
+                        'error': f"Error processing response: {str(e)}",
+                        'status': 'failed'
+                    }
+                
                 ans.append(result_entry)
                 batch_results.append(result_entry)
             
@@ -149,18 +170,17 @@ async def llm_articles(articles: List[Dict], model, prompt, batch_size: int = 50
                 # Append batch results to CSV
                 batch_df = pd.DataFrame(batch_results)
                 
-                # For the first batch, write with headers
-                if i == 0:
-                    batch_df.to_csv(csv_path, index=False, mode='w')
-                else:
-                    # For subsequent batches, append without headers
-                    batch_df.to_csv(csv_path, index=False, mode='a', header=False)
+                # Write batch results to CSV
+                file_exists = os.path.exists(output_path)
+                batch_df.to_csv(output_path, mode='a', index=False, header= not file_exists)
                 
-                print(f"Batch {i//batch_size + 1} complete. Results appended to {csv_path}")
+                print(f"Batch {i//batch_size + 1} complete. Results appended to {output_path}")
                 
         except Exception as e:
             print(f"Error processing batch starting at index {i}: {str(e)}")
-            time.sleep(20)
+            with open('error.json', 'a') as f:
+                json.dump({'error': str(e), 'prompt': prompt_name, 'batch_size': batch_size, 'index': i}, f, ensure_ascii=False, indent=4)
+            time.sleep(5)
             continue
 
     return ans
@@ -174,10 +194,12 @@ if __name__ == "__main__":
     if not xls_path:
         raise ValueError("Please set XLS_PATH environment variable")
     
-    # prompt_name = "base_prompt"
-    # iea = LabelTask(base_prompt)
-    prompt_name = "additional_prompt"
-    iea = LabelTask(additional_prompt)
-
+    prompt_name = "base_prompt"
+    iea = LabelTask(base_prompt)
+    # prompt_name = "additional_prompt"
+    # iea = LabelTask(additional_prompt)
     output_path = f"full_sample_label_{prompt_name}.csv"
+    
+    # Start processing from index
+    # start_index = 3300
     ans = iea.process_xls(xls_path, output_path)

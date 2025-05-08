@@ -26,16 +26,16 @@ async def process_single_batch():
     )
     
     # Select prompt from the additional_prompts
-    prompt = AI_NATIVE_OR_AUGMENTED  # Change to whichever prompt you need
+    prompt = AUTOMATION_DEPTH  # Change to whichever prompt you need
     
     # Load data
     df = pd.read_excel(xls_path)
     articles = df.to_dict('records')
     
     # Define parameters
-    start_index = 4550
+    start_index = 4300
     batch_size = 50
-    output_path = f"batch_4550_results.json"
+    output_path = f"batch_{start_index}_{batch_size}_results.json"
     
     # Extract the batch
     batch = articles[start_index:start_index + batch_size]
