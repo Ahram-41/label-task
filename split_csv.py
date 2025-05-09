@@ -14,10 +14,7 @@ def get_all_basedata_fields():
         Is_Niche_or_Broad_Market_B_Response,
         Is_Product_or_Platform_Response,
         AI_startup_type_Response,
-        Is_Data_Centric_Response2,
-        Is_Niche_or_Broad_Market_Response2,
-        Is_Product_or_Platform_Response2,
-        AI_startup_type_Response3,
+        Vertical_or_Horizontal_Response,
         Developer_or_Integrator_Response,
         AI_Native_or_Augmented_Response,
         Automation_Depth_Response

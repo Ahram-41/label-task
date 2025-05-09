@@ -20,7 +20,7 @@ map_response = {
     IS_NICHE_OR_BROAD_MARKET_B: Is_Niche_or_Broad_Market_B_Response,
     IS_PRODUCT_OR_PLATFORM: Is_Product_or_Platform_Response,
     HARDWARE_OR_FOUNDATION_MODEL: AI_startup_type_Response,
-    VERTICAL_OR_HORIZONTAL: AI_startup_type_Response3,
+    VERTICAL_OR_HORIZONTAL: Vertical_or_Horizontal_Response,
     DEVELOPER_OR_INTEGRATOR: Developer_or_Integrator_Response,
     AI_NATIVE_OR_AUGMENTED: AI_Native_or_Augmented_Response,
     AUTOMATION_DEPTH: Automation_Depth_Response

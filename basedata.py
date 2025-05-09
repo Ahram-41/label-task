@@ -66,37 +66,7 @@ class AI_startup_type_Response(BaseModel):
     AI_startup_type_explanation: str = Field(
         description="short explanation for the classification of hardware, foundation model, application AI, or all others"
     )
-class Is_Data_Centric_Response2(BaseModel):
-    Is_data_centric: int = Field(
-        description="classify these AI startups' businesses as data-centric (1) or non-data-centric (0)"
-    )
-    Is_data_centric_probability: float = Field(
-        description="probability of Y=1"
-    )
-    Is_data_centric_explanation: str = Field(
-        description="short explanation for the classification of data-centric or non-data-centric"
-    )
-class Is_Niche_or_Broad_Market_Response2(BaseModel):
-    Is_niche_or_broad_market: int = Field(
-        description="classify these AI startups' businesses as niche (1) or broad-market (0)"
-    )
-    Is_niche_or_broad_market_probability: float = Field(
-        description="probability of Y=1"
-    )
-    Is_niche_or_broad_market_reasoning: str = Field(
-        description="reasoning for the classification of niche or broad-market"
-    )
-class Is_Product_or_Platform_Response2(BaseModel):
-    Is_product_or_platform: int = Field(
-        description="classify these AI startups' businesses as product (0) or platform (1)"
-    )
-    Is_product_or_platform_probability: float = Field(
-        description="probability of Y=1"
-    )
-    Is_product_or_platform_reasoning: str = Field(
-        description="reasoning for the classification of product or platform"
-    )
-class AI_startup_type_Response3(BaseModel):
+class Vertical_or_Horizontal_Response(BaseModel):
     vertical_ai_startup: float = Field(
         description="probability of the startup being a vertical AI startup"
     )
