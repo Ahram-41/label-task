@@ -103,7 +103,7 @@ class AI_startup_type_Response3(BaseModel):
     horizontal_ai_startup: float = Field(
         description="probability of the startup being a horizontal AI startup"
     )
-    ai_startup_type_explanation: str = Field(
+    vertical_or_horizontal_explanation: str = Field(
         description="explanation for the classification of vertical or horizontal AI startup"
     )
 class Developer_or_Integrator_Response(BaseModel):
