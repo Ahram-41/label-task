@@ -41,7 +41,6 @@ async def process_single_batch():
     batch = articles[start_index:start_index + batch_size]
     
     # Process the batch
-    # Set batch_size equal to the length of our batch to ensure it's processed as one unit
     results = await llm_articles(batch, llm, prompt, batch_size=len(batch), output_path=output_path)
     
     print(f"Processed batch starting at index {start_index}. Results saved to {output_path}")

@@ -89,7 +89,7 @@ def analyze_content(llm, content: str, prompt: str) -> Dict:
             "reasoning": "Error in analysis"
         }
 
-async def llm_articles(articles: List[Dict], model, prompt_name, batch_size: int = 50, output_path: str = None):
+async def llm_articles(articles: List[Dict], model, prompt_name, batch_size: int = 50, output_path: str = None) -> List[Dict]:
     """
     Process a list of articles using an LLM model with flexible schema handling.
     
@@ -136,28 +136,28 @@ async def llm_articles(articles: List[Dict], model, prompt_name, batch_size: int
                     # If response is an exception, create an error entry
                     if isinstance(response, Exception):
                         # Create a failed entry with all expected fields as None
-                        analysis_data = {key: None for key in expected_keys}
+                        analysis_data = {key: str(response) for key in expected_keys}
                         result_entry = {
-                            **analysis_data,
                             **article,
+                            **analysis_data,
                             'error': str(response),
                             'status': 'failed'
                         }
                     else:
                         # For successful cases, ensure error field exists but is None
                         result_entry = {
-                            **response,
                             **article,
+                            **response,
                             'error': None,
                             'status': 'success'
 
                         }
                 except Exception as e:
                     # Create a failed entry with all expected fields as None
-                    analysis_data = {key: "Invalid response" for key in expected_keys}
+                    analysis_data = {key: str(e) for key in expected_keys}
                     result_entry = {
-                        **analysis_data,
                         **article,
+                        **analysis_data,
                         'error': f"Error processing response: {str(e)}",
                         'status': 'failed'
                     }
