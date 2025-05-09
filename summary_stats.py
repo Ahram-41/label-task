@@ -116,46 +116,6 @@ print(f"  Data-centric agreement: {data_centric_agreement:.1f}%")
 print(f"  Niche market agreement: {niche_agreement:.1f}%")
 print(f"  Product/Platform agreement: {platform_agreement:.1f}%")
 
-# Correlation between probabilities in modified prompt and additional prompt
-print("\nCorrelation between different dimensions (modified and additional prompts):")
-
-# Combine datasets for correlation analysis
-combined_df = pd.merge(
-    modified_df[['investee_company_beid', 'Is_data_centric_probability', 'Is_niche_or_broad_market_probability', 'Is_product_or_platform_probability']], 
-    additional_df[['investee_company_beid', 'vertical_ai_startup', 'model_developer', 'ai_native', 'full_automation']],
-    on='investee_company_beid'
-)
-
-# Calculate correlations
-def print_correlation(df, col1, col2, label1, label2):
-    corr, p_value = pearsonr(df[col1], df[col2])
-    significance = "significant" if p_value < 0.05 else "not significant"
-    print(f"  {label1} vs {label2}: r = {corr:.2f} (p = {p_value:.3f}, {significance})")
-
-print_correlation(combined_df, 'Is_data_centric_probability', 'model_developer', 'Data-centric', 'Model developer')
-print_correlation(combined_df, 'Is_niche_or_broad_market_probability', 'vertical_ai_startup', 'Niche market', 'Vertical AI')
-print_correlation(combined_df, 'Is_product_or_platform_probability', 'ai_native', 'Platform', 'AI-native')
-
-# Cross-dimensional correlations
-print("\nCross-dimensional correlations in additional prompt:")
-print_correlation(additional_df, 'vertical_ai_startup', 'model_developer', 'Vertical AI', 'Model developer')
-print_correlation(additional_df, 'vertical_ai_startup', 'ai_native', 'Vertical AI', 'AI-native')
-print_correlation(additional_df, 'ai_native', 'model_developer', 'AI-native', 'Model developer')
-print_correlation(additional_df, 'full_automation', 'ai_native', 'Full automation', 'AI-native')
-
-# Analysis of AI startup types
-print("\nRelationship between AI startup type and other dimensions:")
-ai_type_mapping = {1: 'Hardware', 2: 'Foundation Model', 3: 'Application AI', 4: 'Others'}
-modified_df['AI_startup_type_name'] = modified_df['AI_startup_type'].map(ai_type_mapping)
-
-ai_type_analysis = modified_df.groupby('AI_startup_type_name').agg({
-    'Is_data_centric_probability': 'mean',
-    'Is_niche_or_broad_market_probability': 'mean',
-    'Is_product_or_platform_probability': 'mean'
-}).reset_index()
-
-print(ai_type_analysis)
-
 # Output file for charts
 print("\nGenerating visualizations...")
 
@@ -224,16 +184,16 @@ plt.xticks(x, add_labels, rotation=45)
 plt.legend(title='Label')
 plt.tight_layout()
 
-# 4. Agreement between base and modified prompts
+# 4. AI Startup Type distribution from modified prompt
 plt.subplot(2, 2, 4)
-agreement_categories = ['Data-centric', 'Niche Market', 'Product/Platform']
-agreement_values = [data_centric_agreement, niche_agreement, platform_agreement]
+ai_type_counts = modified_df['AI_startup_type'].value_counts(normalize=True) * 100
+ai_type_labels = {1: 'Hardware', 2: 'Foundation Model', 3: 'Application AI', 4: 'Others'}
+ai_type_dict = {ai_type_labels[k]: v for k, v in ai_type_counts.items()}
 
-plt.bar(agreement_categories, agreement_values)
-plt.xlabel('Category')
-plt.ylabel('Agreement (%)')
-plt.title('Agreement Between Base and Modified Prompts')
-plt.ylim(0, 100)
+plt.bar(ai_type_dict.keys(), ai_type_dict.values())
+plt.xlabel('AI Startup Type')
+plt.ylabel('Percentage (%)')
+plt.title('AI Startup Type Distribution (Modified Prompt)')
 plt.xticks(rotation=45)
 plt.tight_layout()
 
