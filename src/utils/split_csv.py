@@ -1,7 +1,7 @@
 import csv
 import os
 import pandas as pd
-from basedata import *
+from src.basedata import *
 
 # Get all field names from basedata classes
 def get_all_basedata_fields():

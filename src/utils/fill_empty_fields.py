@@ -4,8 +4,8 @@ import asyncio
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from llm_analyst import llm_articles, map_response
-from prompts import *
-from basedata import *
+from prompt.prompts import *
+from src.basedata import *
 
 # Load environment variables
 load_dotenv()

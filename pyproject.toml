@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "label-task"
+version = "0.1.0"
+description = "Label task for AI startups"
+readme = "README.md"
+authors = [
+    {name = "Ahram-41", email = "your.email@example.com"}
+]
+requires-python = ">=3.11"
+dependencies = [
+    "langchain-openai",
+    "langchain-community",
+    "langchain-core",
+    "numpy",
+    "pandas",
+    "tqdm",
+    "python-dotenv",
+    "markdownify>=1.1.0",
+    "readabilipy>=0.3.0",
+    "langgraph>=0.4.5",
+    "openpyxl>=3.1.5",
+    "xlrd>=2.0.1",
+    "selenium>=4.32.0",
+    "webdriver-manager>=4.0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.11.0",
+    "isort>=5.12.0"
+]
+
+[tool.setuptools]
+packages = ["src"]
+
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_gitignore = true
+skip_glob = [".venv/*", "venv/*"] 

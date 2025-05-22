@@ -4,8 +4,8 @@ import os
 from dotenv import load_dotenv
 from llm_analyst import llm_articles
 from langchain_openai import ChatOpenAI
-from prompts import *
-from basedata import *
+from src.prompt.prompts import *
+from src.basedata import *
 
 async def process_single_batch():
     # Load environment variables

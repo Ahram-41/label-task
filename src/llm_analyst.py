@@ -3,8 +3,8 @@ from langchain_openai import ChatOpenAI
 import json
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import PromptTemplate
-from prompts import *
-from basedata import *
+from prompt.prompts import *
+from src.basedata import *
 from typing import Dict, List
 from dotenv import load_dotenv
 import os
