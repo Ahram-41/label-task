@@ -35,7 +35,15 @@ BUSINESS DESCRIPTION: {description}
 {format_instructions}
 """
 
-Tasks=[FOUNDERS_BACKGROUND, COMPANY_EXECUTIVES, AI_PRODUCTS, AI_TECHNOLOGY]
+AI_PARTNER = """Based on the AI startups’ names and business descriptions, collect information on the well-known AI firms that the startup has partnerships or collaborations with.
+
+COMPANY NAME: {company_name}
+BUSINESS DESCRIPTION: {description}
+
+{format_instructions}
+"""
+
+Tasks=[FOUNDERS_BACKGROUND, COMPANY_EXECUTIVES, AI_PRODUCTS, AI_TECHNOLOGY, AI_PARTNER]
 
 PATENT_INFORMATION = """Based on the AI startups’ names and business descriptions, collect information on the AI related product that the company provides and technology that the product is based on.
 

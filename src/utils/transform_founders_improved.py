@@ -6,7 +6,7 @@ import pathlib
 
 # Add the src directory to the path to import the basedata_control module
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.basedata_control import Founder, Executive, Products, Technology
+from src.basedata_control import Founder, Executive, Products, Technology, Partner
 
 def get_model_class_from_filename(filename):
     """Determine the appropriate model class based on the filename"""
@@ -20,6 +20,8 @@ def get_model_class_from_filename(filename):
         return Products, 'products'
     elif 'tech' in filename_lower or 'technology' in filename_lower:
         return Technology, 'technologies'
+    elif 'partner' in filename_lower:
+        return Partner, 'partners'
     else:
         # Default to Founder if we can't determine
         print(f"Warning: Could not determine object type from filename '{filename}'. Defaulting to Founder.")
@@ -58,7 +60,7 @@ def parse_objects(object_str, class_name):
         return []
 
 # Read the original CSV
-name = 'technology'
+name = 'partner'
 input_file = f"{name}.csv"  # This can be changed based on what you're processing
 output_file = f'{name}_expanded_clean.csv'
 

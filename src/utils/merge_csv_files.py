@@ -7,7 +7,7 @@ def main():
     outputs_dir = '/Users/wbik/Downloads/label-task/outputs'
     
     # Define the CSV files to merge
-    files_to_merge = ['executive.csv', 'founders.csv', 'product.csv', 'technology.csv']
+    files_to_merge = ['executive.csv', 'founders.csv', 'product.csv', 'technology.csv', 'partner.csv']
     
     # Initialize a dictionary to store dataframes
     dataframes = {}
@@ -102,6 +102,9 @@ def add_expanded_clean_columns(outputs_dir):
     
     New columns from technology_expanded_clean:
     - AITech: For each beid, if any row has is_ai_tech=1, then 1; else 0
+    
+    New columns from partner_expanded_clean:
+    - Partner: For each beid, if any row has both partner_name and collaboration_type not "Unknown", then 1; else 0
     """
     print("\nAdding columns from expanded_clean CSV files...")
     
@@ -259,6 +262,46 @@ def add_expanded_clean_columns(outputs_dir):
         print(f"Added technology column: AITech")
     else:
         print(f"File {tech_file} not found")
+    
+    # Process partner data
+    partner_file = os.path.join(outputs_dir, 'partner_expanded_clean.csv')
+    if os.path.exists(partner_file):
+        partner_df = pd.read_csv(partner_file)
+        print(f"Loaded {partner_file} with {len(partner_df)} rows")
+        
+        # Check if any row has both partner_name and collaboration_type not "Unknown"
+        partner_df['has_valid_partner'] = (partner_df['partner_name'] != "Unknown") & (partner_df['collaboration_type'] != "Unknown")
+        
+        # Aggregate by beid
+        partner_agg = partner_df.groupby('investee_company_beid').agg(
+            has_partner=('has_valid_partner', lambda x: x.any())
+        ).reset_index()
+        
+        # Convert boolean to integer
+        partner_agg['Partner'] = partner_agg['has_partner'].astype(int)
+        
+        # Select only the columns we need for merging
+        partner_columns = ['investee_company_beid', 'Partner']
+        partner_agg = partner_agg[partner_columns]
+        
+        # Merge with the main dataframe
+        merged_df = pd.merge(
+            merged_df,
+            partner_agg,
+            on='investee_company_beid',
+            how='left'
+        )
+        
+        # Fill NA values with 0
+        merged_df['Partner'] = merged_df['Partner'].fillna(0).astype(int)
+        
+        print(f"Added partner column: Partner")
+    else:
+        print(f"File {partner_file} not found")
+    
+    # Add Genuine column that equals 1 if either AIProduct or Partner equals 1, and 0 otherwise
+    merged_df['Genuine'] = ((merged_df['AIProduct'] == 1) | (merged_df['Partner'] == 1)).astype(int)
+    print(f"Added Genuine column: 1 if AIProduct=1 or Partner=1, 0 otherwise")
     
     # Save the updated merged dataframe
     merged_df.to_csv(merged_file, index=False)

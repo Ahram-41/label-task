@@ -16,7 +16,8 @@ map_response = {
     FOUNDERS_BACKGROUND: Founders_Background_Response,
     COMPANY_EXECUTIVES: Company_Executives_Response,
     AI_PRODUCTS: AI_Products_Response,
-    AI_TECHNOLOGY: AI_Technology_Response
+    AI_TECHNOLOGY: AI_Technology_Response,
+    AI_PARTNER: AI_Partner_Response
 }
 api_key = os.getenv("OPENAI_API_KEY")
 llm = ChatOpenAI(
@@ -24,8 +25,6 @@ llm = ChatOpenAI(
     openai_api_key=api_key,
     # tools=[{"type": "web_search"}]
 )
-
-
 
 def test_one():
     kwargs = {
@@ -58,7 +57,7 @@ def test_csv(task):
     response_format=map_response[query]
 )
     parser = JsonOutputParser(pydantic_object=map_response[query])
-    df = pd.read_csv("distinct_selected_companies.csv")
+    df = pd.read_csv("others/distinct_selected_companies.csv")
     companies = df.to_dict('records')
     print(len(companies[:21]))
     result = []
@@ -161,4 +160,4 @@ DESCRIPTION: {description}
     df.to_csv("founders_background_openai.csv", index=False, mode='w', header=False)
 
 if __name__ == "__main__":
-    test_csv("technology")
+    test_csv("partner")

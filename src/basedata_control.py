@@ -64,6 +64,17 @@ class AI_Technology_Response(BaseModel):
         description="a list of the key functional technologies utilized or developed by the company, excluding the infrastructure providers."
     )
 
+class Partner(BaseModel):
+    partner_name: str = Field(
+        description="name of the partner company that is well-known in the AI industry, excluding general infrastructure providers. if there is no information, assign 'Unknown'."
+    )
+    collaboration_type: str = Field(
+        description="type of the AI related collaboration or partnership."
+    )
+class AI_Partner_Response(BaseModel):
+    partners: List[Partner] = Field(
+        description="a list of the well-known AI partner companies."
+    )
 
 class Patent_Information_Response(BaseModel):
     ai_patent: int = Field(
