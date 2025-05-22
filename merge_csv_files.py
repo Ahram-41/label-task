@@ -88,12 +88,20 @@ def add_expanded_clean_columns(outputs_dir):
     """
     Add columns from expanded_clean CSV files to the merged_data.csv file.
     
-    New columns:
-    - CS Degree: 1 if any founder has CS degree, 2 if all founders have CS degree=2, otherwise 0
-    - Top10 University: 1 if any founder has a known university (not Unknown or Others), else 0
-    - Prior Success IPO: 1 if any founder has prior_success_ipo=1, else 0
-    - Prior Success MA: 1 if any founder has prior_success_ma=1, else 0
-    - NumberofExecutives: Count of executive_name per beid
+    New columns from founders_expanded_clean:
+    - CS Degree: For each beid, if any row has cs_degree=1, then 1; if all rows have cs_degree=2, then 2; otherwise 0
+    - Top10 University: For each beid, if any row has graduated_university not "Unknown" or "Others", then 1; else 0
+    - Prior Success IPO: For each beid, if any row has prior_success_ipo=1, then 1; else 0
+    - Prior Success MA: For each beid, if any row has prior_success_ma=1, then 1; else 0
+    
+    New columns from executive_expanded_clean:
+    - NumberofExecutives: For each beid, count the number of non-null executive_name values
+    
+    New columns from product_expanded_clean:
+    - AIProduct: For each beid, if any row has is_ai_product=1, then 1; else 0
+    
+    New columns from technology_expanded_clean:
+    - AITech: For each beid, if any row has is_ai_tech=1, then 1; else 0
     """
     print("\nAdding columns from expanded_clean CSV files...")
     
@@ -109,34 +117,34 @@ def add_expanded_clean_columns(outputs_dir):
         
         # Calculate aggregations by beid
         founders_agg = founders_df.groupby('investee_company_beid').agg(
-            # CS Degree logic: 
-            # - If any founder has cs_degree=1, result is 1
-            # - If all founders have cs_degree=2, result is 2
-            # - Otherwise, result is 0
-            cs_degree_all_2=('cs_degree', lambda x: (x == 2).all()),
-            cs_degree_any_1=('cs_degree', lambda x: (x == 1).any()),
-            # Top10 University: 1 if any founder has graduated_university not "Unknown" or "Others"
-            has_known_university=('graduated_university', 
-                                lambda x: ((x != "Unknown") & (x != "Others")).any()),
-            # Prior Success IPO: 1 if any founder has prior_success_ipo=1
+            # Check if all cs_degree values are 2
+            all_cs_degree_2=('cs_degree', lambda x: (x == 2).all()),
+            # Check if any cs_degree value is 1
+            any_cs_degree_1=('cs_degree', lambda x: (x == 1).any()),
+            # Check if any graduated_university is not "Unknown" or "Others"
+            any_top_university=('graduated_university', lambda x: ((x != "Unknown") & (x != "Others")).any()),
+            # Check if any prior_success_ipo is 1
             any_prior_ipo=('prior_success_ipo', lambda x: (x == 1).any()),
-            # Prior Success MA: 1 if any founder has prior_success_ma=1
-            any_prior_ma=('prior_success_ma', lambda x: (x == 1).any()),
-            # Count of founders per company
-            founder_count=('founder_name', 'count')
+            # Check if any prior_success_ma is 1
+            any_prior_ma=('prior_success_ma', lambda x: (x == 1).any())
         ).reset_index()
         
         # Create CS Degree column based on the specified logic
+        # If any cs_degree is 1, set to 1
+        # If all cs_degree are 2, set to 2
+        # Otherwise, set to 0
         founders_agg['CS Degree'] = 0
-        founders_agg.loc[founders_agg['cs_degree_any_1'], 'CS Degree'] = 1
-        founders_agg.loc[~founders_agg['cs_degree_any_1'] & founders_agg['cs_degree_all_2'], 'CS Degree'] = 2
+        # First check for any cs_degree = 1 (this takes precedence)
+        founders_agg.loc[founders_agg['any_cs_degree_1'], 'CS Degree'] = 1
+        # Then, only for rows that don't have any cs_degree = 1 but all = 2
+        founders_agg.loc[(~founders_agg['any_cs_degree_1']) & founders_agg['all_cs_degree_2'], 'CS Degree'] = 2
         
-        # Create the other columns with simpler logic
-        founders_agg['Top10 University'] = founders_agg['has_known_university'].astype(int)
+        # Create other founder-related columns
+        founders_agg['Top10 University'] = founders_agg['any_top_university'].astype(int)
         founders_agg['Prior Success IPO'] = founders_agg['any_prior_ipo'].astype(int)
         founders_agg['Prior Success MA'] = founders_agg['any_prior_ma'].astype(int)
         
-        # Keep only the columns we need
+        # Select only the columns we need for merging
         founders_columns = ['investee_company_beid', 'CS Degree', 'Top10 University', 
                            'Prior Success IPO', 'Prior Success MA']
         founders_agg = founders_agg[founders_columns]
@@ -163,10 +171,12 @@ def add_expanded_clean_columns(outputs_dir):
         executives_df = pd.read_csv(executives_file)
         print(f"Loaded {executives_file} with {len(executives_df)} rows")
         
-        # Count executives by beid, ignoring null or empty values
+        # Replace empty strings with NaN for proper counting
         executives_df['executive_name'] = executives_df['executive_name'].replace('', np.nan)
+        
+        # Count executives by beid, ignoring null values
         executives_agg = executives_df.groupby('investee_company_beid').agg(
-            NumberofExecutives=('executive_name', lambda x: x.count())
+            NumberofExecutives=('executive_name', lambda x: x.notna().sum())
         ).reset_index()
         
         # Merge with the main dataframe
@@ -183,6 +193,72 @@ def add_expanded_clean_columns(outputs_dir):
         print(f"Added executive column: NumberofExecutives")
     else:
         print(f"File {executives_file} not found")
+    
+    # Process product data
+    product_file = os.path.join(outputs_dir, 'product_expanded_clean.csv')
+    if os.path.exists(product_file):
+        product_df = pd.read_csv(product_file)
+        print(f"Loaded {product_file} with {len(product_df)} rows")
+        
+        # Check if any product has is_ai_product=1 for each beid
+        product_agg = product_df.groupby('investee_company_beid').agg(
+            any_ai_product=('is_ai_product', lambda x: (x == 1).any())
+        ).reset_index()
+        
+        # Convert boolean to integer
+        product_agg['AIProduct'] = product_agg['any_ai_product'].astype(int)
+        
+        # Select only the columns we need for merging
+        product_columns = ['investee_company_beid', 'AIProduct']
+        product_agg = product_agg[product_columns]
+        
+        # Merge with the main dataframe
+        merged_df = pd.merge(
+            merged_df,
+            product_agg,
+            on='investee_company_beid',
+            how='left'
+        )
+        
+        # Fill NA values with 0
+        merged_df['AIProduct'] = merged_df['AIProduct'].fillna(0).astype(int)
+        
+        print(f"Added product column: AIProduct")
+    else:
+        print(f"File {product_file} not found")
+    
+    # Process technology data
+    tech_file = os.path.join(outputs_dir, 'technology_expanded_clean.csv')
+    if os.path.exists(tech_file):
+        tech_df = pd.read_csv(tech_file)
+        print(f"Loaded {tech_file} with {len(tech_df)} rows")
+        
+        # Check if any technology has is_ai_tech=1 for each beid
+        tech_agg = tech_df.groupby('investee_company_beid').agg(
+            any_ai_tech=('is_ai_tech', lambda x: (x == 1).any())
+        ).reset_index()
+        
+        # Convert boolean to integer
+        tech_agg['AITech'] = tech_agg['any_ai_tech'].astype(int)
+        
+        # Select only the columns we need for merging
+        tech_columns = ['investee_company_beid', 'AITech']
+        tech_agg = tech_agg[tech_columns]
+        
+        # Merge with the main dataframe
+        merged_df = pd.merge(
+            merged_df,
+            tech_agg,
+            on='investee_company_beid',
+            how='left'
+        )
+        
+        # Fill NA values with 0
+        merged_df['AITech'] = merged_df['AITech'].fillna(0).astype(int)
+        
+        print(f"Added technology column: AITech")
+    else:
+        print(f"File {tech_file} not found")
     
     # Save the updated merged dataframe
     merged_df.to_csv(merged_file, index=False)
