@@ -1,3 +1,7 @@
+"""
+This script is used to transform the nested results from a CSV file to a new CSV file with the expanded fields.
+"""
+
 import csv
 import re
 import sys

@@ -5,6 +5,9 @@ class Founder(BaseModel):
     founder_name: str = Field(
         description="name of the person in founding team members."
     )
+    degree_name: str = Field(
+        description="the name of the degree of the founder."
+    )
     cs_degree: int = Field(
         description="if this founder holds a computer science-related degree (including bachelor’s, master’s, doctoral, or other qualifications), it is 1; otherwise 0. If no information of educational qualifications, assign 2."
     )
