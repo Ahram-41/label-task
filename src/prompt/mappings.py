@@ -5,5 +5,6 @@ agent_prompt_mapping = {
     "executive": COMPANY_EXECUTIVES,
     "product": AI_PRODUCTS,
     "technology": AI_TECHNOLOGY,
-    "partner": AI_PARTNER
+    "partner": AI_PARTNER,
+    "ipo_ma": IPO_MNA
 }

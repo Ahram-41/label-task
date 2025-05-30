@@ -177,3 +177,6 @@ others/
 .DS_Store
 json_messages/
 outputs/
+*.csv
+*.xls
+*.html

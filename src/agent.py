@@ -19,7 +19,8 @@ map_response = {
     COMPANY_EXECUTIVES: Company_Executives_Response,
     AI_PRODUCTS: AI_Products_Response,
     AI_TECHNOLOGY: AI_Technology_Response,
-    AI_PARTNER: AI_Partner_Response
+    AI_PARTNER: AI_Partner_Response,
+    IPO_MNA: IPO_MnA_Response
 }
 api_key = os.getenv("OPENAI_API_KEY")
 llm = ChatOpenAI(
@@ -96,9 +97,9 @@ def test_csv(task):
     response_format=map_response[query]
 )
     parser = JsonOutputParser(pydantic_object=map_response[query])
-    # df = pd.read_csv("others/distinct_selected_companies.csv")
-    df = pd.read_excel("/Users/wbik/Downloads/label-task/250425aistartup_sdc_crunch_des_fullsample.xls")
-    companies = df.to_dict('records')[2130:]
+    df = pd.read_csv("others/distinct_selected_companies.csv")
+    # df = pd.read_excel("/Users/wbik/Downloads/label-task/250425aistartup_sdc_crunch_des_fullsample.xls")
+    companies = df.to_dict('records')[:20]
     
     # Create json_messages directory if it doesn't exist
     os.makedirs("json_messages", exist_ok=True)
@@ -177,4 +178,4 @@ def test_csv(task):
 
 
 if __name__ == "__main__":
-    test_csv("product")
+    test_csv("ipo_ma")

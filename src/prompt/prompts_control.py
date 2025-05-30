@@ -42,8 +42,16 @@ BUSINESS DESCRIPTION: {description}
 
 {format_instructions}
 """
+IPO_MNA = """
+Based on the AI startups’ names and descriptions, collect information on IPO and M&A informationof the company.
 
-Tasks=[FOUNDERS_BACKGROUND, COMPANY_EXECUTIVES, AI_PRODUCTS, AI_TECHNOLOGY, AI_PARTNER]
+COMPANY NAME: {company_name}
+BUSINESS DESCRIPTION: {description}
+
+{format_instructions}
+"""
+
+Tasks=[FOUNDERS_BACKGROUND, COMPANY_EXECUTIVES, AI_PRODUCTS, AI_TECHNOLOGY, AI_PARTNER, IPO_MNA]
 
 PATENT_INFORMATION = """Based on the AI startups’ names and business descriptions, collect information on the AI related product that the company provides and technology that the product is based on.
 

@@ -1,13 +1,14 @@
 import pandas as pd
 import os
 import numpy as np
+import re
 
 def main():
     # Define the path to the outputs directory
     outputs_dir = '/Users/wbik/Downloads/label-task/outputs'
     
     # Define the CSV files to merge
-    files_to_merge = ['executive.csv', 'founders.csv', 'product.csv', 'technology.csv', 'partner.csv']
+    files_to_merge = ['executive.csv', 'founder.csv', 'product.csv', 'technology.csv', 'partner.csv']
     
     # Initialize a dictionary to store dataframes
     dataframes = {}
@@ -75,6 +76,86 @@ def main():
             
             # Keep the original token columns for reference
     
+    # Merge IPO/M&A data
+    ipo_ma_file = os.path.join(outputs_dir, 'ipo_ma.csv')
+    if os.path.exists(ipo_ma_file):
+        print(f"Reading IPO/M&A data from {ipo_ma_file}")
+        ipo_ma_df = pd.read_csv(ipo_ma_file)
+        
+        # Extract IPO/M&A info from founders column
+        def extract_value(row, key):
+            try:
+                # Find the key-value pair in the founders string
+                pattern = f"{key}=(\\d|'')"
+                match = re.search(pattern, row)
+                if match:
+                    value = match.group(1)
+                    return 1 if value == '1' else 0
+            except:
+                pass
+            return 0
+            
+        def extract_date(row, key):
+            try:
+                # Find the date value in the founders string
+                pattern = f"{key}_date='([^']*)"
+                match = re.search(pattern, row)
+                if match:
+                    return match.group(1)
+            except:
+                pass
+            return ''
+            
+        # Extract values from founders column
+        ipo_ma_df['ipo'] = ipo_ma_df['founders'].apply(lambda x: extract_value(x, 'ipo'))
+        ipo_ma_df['ma'] = ipo_ma_df['founders'].apply(lambda x: extract_value(x, 'ma'))
+        ipo_ma_df['ipo_date'] = ipo_ma_df['founders'].apply(lambda x: extract_date(x, 'ipo'))
+        ipo_ma_df['ma_date'] = ipo_ma_df['founders'].apply(lambda x: extract_date(x, 'ma'))
+        
+        # Select only needed columns for merging
+        ipo_ma_columns = ['investee_company_beid', 'ipo', 'ipo_date', 'ma', 'ma_date', 'tool_calls', 'completion_tokens', 'prompt_tokens']
+        ipo_ma_df = ipo_ma_df[ipo_ma_columns]
+        
+        # Rename token columns to add suffix for distinction
+        ipo_ma_df = ipo_ma_df.rename(columns={
+            'tool_calls': 'tool_calls_ipo_ma',
+            'completion_tokens': 'completion_tokens_ipo_ma',
+            'prompt_tokens': 'prompt_tokens_ipo_ma'
+        })
+        
+        # Merge with main dataframe
+        merged_df = pd.merge(
+            merged_df,
+            ipo_ma_df,
+            on='investee_company_beid',
+            how='left'
+        )
+        
+        # Fill NA values with 0 for boolean columns and empty string for dates
+        merged_df['ipo'] = merged_df['ipo'].fillna(0).astype(int)
+        merged_df['ma'] = merged_df['ma'].fillna(0).astype(int)
+        merged_df['ipo_date'] = merged_df['ipo_date'].fillna('')
+        merged_df['ma_date'] = merged_df['ma_date'].fillna('')
+        
+        # Fill NA values for token columns with 0
+        merged_df['completion_tokens_ipo_ma'] = merged_df['completion_tokens_ipo_ma'].fillna(0).astype(int)
+        merged_df['prompt_tokens_ipo_ma'] = merged_df['prompt_tokens_ipo_ma'].fillna(0).astype(int)
+        merged_df['tool_calls_ipo_ma'] = merged_df['tool_calls_ipo_ma'].fillna('')
+        
+        print(f"Added IPO/M&A columns: ipo, ipo_date, ma, ma_date, tool_calls_ipo_ma, completion_tokens_ipo_ma, prompt_tokens_ipo_ma")
+        
+        # Recalculate total token columns to include IPO/M&A tokens
+        for col in columns_to_sum:
+            # Find all columns that match the pattern (including the new ipo_ma columns)
+            cols_to_sum = [c for c in merged_df.columns if c == col or c.startswith(f"{col}_")]
+            
+            # Sum these columns into the total column
+            if len(cols_to_sum) > 0:
+                merged_df[f'total_{col}'] = merged_df[cols_to_sum].sum(axis=1, skipna=True)
+                print(f"Updated total_{col} to include IPO/M&A tokens")
+    else:
+        print(f"File {ipo_ma_file} not found")
+    
     # Save the merged dataframe to a new CSV file
     output_file = os.path.join(outputs_dir, 'merged_data.csv')
     merged_df.to_csv(output_file, index=False)
@@ -113,7 +194,7 @@ def add_expanded_clean_columns(outputs_dir):
     merged_df = pd.read_csv(merged_file)
     
     # Process founders data
-    founders_file = os.path.join(outputs_dir, 'founders_expanded_clean.csv')
+    founders_file = os.path.join(outputs_dir, 'founder_expanded_clean.csv')
     if os.path.exists(founders_file):
         founders_df = pd.read_csv(founders_file)
         print(f"Loaded {founders_file} with {len(founders_df)} rows")

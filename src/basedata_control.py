@@ -79,6 +79,20 @@ class AI_Partner_Response(BaseModel):
         description="a list of the well-known AI partner companies."
     )
 
+class IPO_MnA_Response(BaseModel):
+    ipo: int = Field(
+        description="if the startup has asuccessful IPO, it is 1; otherwise, it is 0."
+    )
+    ipo_date: str = Field(
+        description="the date of the IPO event of the AI startup."
+    )
+    ma: int = Field(
+        description="if the startup successfully exited through mergers and acquisitions (M&A), it is 1; otherwise, it is 0."
+    )
+    ma_date: str = Field(
+        description="the yyyy/mm/dd date of the mergers and acquisitions event of the AI startup."
+    )
+
 class Patent_Information_Response(BaseModel):
     ai_patent: int = Field(
         description="if the startup has AI-related patenting activities, it is 1; otherwise, it is 0."
