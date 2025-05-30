@@ -2,7 +2,7 @@ from firecrawl import FirecrawlApp
 from dotenv import load_dotenv
 import os
 from langchain_core.prompts import PromptTemplate
-from src.basedata_control import IPO_MnA_Response
+
 from langchain_core.output_parsers import JsonOutputParser
 
 from src.prompt import *
@@ -14,7 +14,6 @@ import time
 import asyncio
 from tqdm import tqdm
 from langchain_openai import ChatOpenAI
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 load_dotenv()
 
@@ -27,56 +26,56 @@ kwargs = {
     "time_limit": 300,  # Time limit in secondss
     "max_urls": 8  # Maximum URLs to analyze
 }
-task_map={"f_ipo_mna": FIRE_IPO_MNA_PROMPT, "f_founder": FIRE_FOUNDER_PROMPT, "f_product": FIRE_PRODUCT_PROMPT, "f_technology": FIRE_TECHNOLOGY_PROMPT, "f_partner": FIRE_PARTNER_PROMPT}
-query_template = FIRE_IPO_MNA_PROMPT
+task_map={"f_executive": FIRE_EXECUTIVE_PROMPT, "f_ipo_mna": FIRE_IPO_MNA_PROMPT, "f_founder": FIRE_FOUNDER_PROMPT, "f_product": FIRE_PRODUCT_PROMPT, "f_technology": FIRE_TECHNOLOGY_PROMPT, "f_partner": FIRE_PARTNER_PROMPT}
+
+task_2_llm = {
+    "f_executive": COMPANY_EXECUTIVES,
+    "f_ipo_mna": IPO_MNA,
+    "f_founder": FOUNDERS_BACKGROUND,
+    "f_product": AI_PRODUCTS,
+    "f_technology": AI_TECHNOLOGY,
+    "f_partner": AI_PARTNER
+}
 def on_activity(activity):
     print(f"[{activity['type']}] {activity['message']}")
 
-def process_single_company(row_data, task):
-    """Process a single company with firecrawl research"""
-    company_info = row_data.to_dict() if hasattr(row_data, 'to_dict') else row_data
-    prompt = PromptTemplate(
-        template=task_map[task],
-        input_variables=["company_name", "description"],
-    ).format(
-        company_name=company_info["investee_company_name"],
-        description=company_info["investee_company_long_business_d"]
-    )
-    
-    # Run deep research
-    results = firecrawl.deep_research(query=prompt, on_activity=on_activity, **kwargs)
-    
-    # Access research findings
-    # print(f"Final Analysis: {results['data']['finalAnalysis']}")
-    # print(f"Sources: {len(results['data']['sources'])} references")
-    print(f"Success: {company_info["investee_company_name"]}")
-    company_info = {**company_info,
-                    "success_search": results['success'],
-                    "finalAnalysis": results['data']['finalAnalysis'],
-                    "source": results['data']['sources']}
-    
-    print(company_info)
-    return company_info
-
 def process_csv(task):
-    ans = []
+    ans=[]
     df = pd.read_csv("others/distinct_selected_companies.csv")
     df = df.head(20)
-    
-    # Process companies in parallel with max_workers=5
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        # Submit all tasks
-        future_to_row = {executor.submit(process_single_company, row, task): row for _, row in df.iterrows()}
-        
-        # Collect results as they complete
-        for future in as_completed(future_to_row):
-            try:
-                result = future.result()
-                ans.append(result)
-            except Exception as exc:
-                row = future_to_row[future]
-                print(f'Company {row.get("investee_company_name", "Unknown")} generated an exception: {exc}')
-    
+    for index, row in df.iterrows():
+        start_time = time.time()
+        company_info = row.to_dict()
+        prompt = PromptTemplate(
+            template=task_map[task],
+            input_variables=["company_name", "description"],
+        ).format(
+            company_name=company_info["investee_company_name"],
+            description=company_info["investee_company_long_business_d"]
+        )
+        # Run deep research
+        try:
+            results = firecrawl.deep_research(query=prompt, on_activity=on_activity, **kwargs)
+            # Access research findings
+            print(f"Final Analysis: {results['data']['finalAnalysis']}")
+            print(f"Sources: {len(results['data']['sources'])} references")
+            company_info = {**company_info,
+                            "success_search":results['success'],
+                            "finalAnalysis":results['data']['finalAnalysis'],
+                            "source":results['data']['sources']}
+
+            print(company_info)
+        except Exception as e:
+            print(f"Error processing {company_info['investee_company_name']}: {str(e)}")
+            company_info = {**company_info,
+                            "success_search":False,
+                            "finalAnalysis":None,
+                            "source":None}
+        end_time = time.time()
+        processing_time = end_time - start_time
+        print(f"Processing time for {company_info['investee_company_name']}: {processing_time:.2f} seconds")
+        company_info['processing_time'] = processing_time
+        ans.append(company_info)
     df_processed = pd.DataFrame(ans)
     df_processed.to_csv(f"others/distinct_selected_companies_firecrawl_{task}.csv", index=False, encoding='utf-8-sig')
     return df_processed
@@ -196,21 +195,24 @@ if __name__ == "__main__":
         ans = asyncio.run(llm_articles(articles, llm, prompt, output_path=output_path))
         return ans
     start_index=0
-    TASK_NAME = ["f_ipo_mna", "f_founder", "f_product", "f_technology", "f_partner"]
+    TASK_NAME = ["f_executive", "f_ipo_mna", "f_founder", "f_product", "f_technology", "f_partner"]
     for task in TASK_NAME:
         df = process_csv(task)
 
-    df = pd.read_csv(f"others/distinct_selected_companies_firecrawl_{task}.csv")
-    articles = df.to_dict('records')
-    output_path = "outputs_firecrawl_output.csv"
-    # If starting from a specific index, slice the articles list
-    append_mode = start_index > 0
-    if append_mode:
-        articles = articles[start_index:]
-        print(f"Starting processing from index {start_index} ({len(articles)} articles remaining)")
-        
-    prompts = [IPO_MNA]
-    for i, prompt in enumerate(tqdm(prompts)):
+    for task in TASK_NAME:
+        df = pd.read_csv(f"others/distinct_selected_companies_firecrawl_{task}.csv")
+        articles = df.to_dict('records')
+        output_path = f"outputs/llm_firecrawl_output_{task}.csv"
+        # If starting from a specific index, slice the articles list
+        append_mode = start_index > 0
+        if append_mode:
+            articles = articles[start_index:]
+            print(f"Starting processing from index {start_index} ({len(articles)} articles remaining)")
+            
+        prompt = task_2_llm[task]
+        # for i, prompt in enumerate(tqdm(prompts)):
         articles = run_analysis(articles, prompt, output_path)
-        output_path = output_path.replace('.csv', f'_{i}.csv') # create several check points
+        # save the articles to a csv file
+        df_articles = pd.DataFrame(articles)
+        df_articles.to_csv(output_path, index=False, encoding='utf-8-sig')
 
