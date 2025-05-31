@@ -1,8 +1,8 @@
 import logging
 from langchain_community.tools.tavily_search import TavilySearchResults
-TAVILY_MAX_RESULTS = 5
 from .logger import create_logged_tool
 import os 
+TAVILY_MAX_RESULTS = 5
 
 # Get Tavily API key from environment variables
 tavily_api_key = os.getenv("TAVILY_API_KEY")

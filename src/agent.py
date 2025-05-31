@@ -12,6 +12,7 @@ import json
 from dotenv import load_dotenv
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 load_dotenv()
 map_response = {
@@ -40,6 +41,18 @@ def sanitize_filename(filename):
         sanitized = sanitized[:200]
     return sanitized
 
+def check_for_api_errors(messages, company_name):
+    """Check for API errors in tool messages and raise appropriate exceptions"""
+    api_errors = ["432 Client Error", "429 Client Error"]
+    
+    for message in messages:
+        if message.type == "tool":
+            content_str = str(message.content)
+            for error in api_errors:
+                if error in content_str:
+                    error_type = "rate_limit" if "429" in error else "client_error"
+                    raise Exception(f"{error} detected for {company_name}: {content_str}", error_type)
+
 def process_single_company(company, task, query, research_agent, parser):
     """Process a single company and return the result"""
     kwargs = {
@@ -58,10 +71,8 @@ def process_single_company(company, task, query, research_agent, parser):
     completion_tokens = token_usage['completion_tokens']
     prompt_tokens = token_usage['prompt_tokens']
     
-    # Check for 432 Client Error in tool messages
-    for message in response['messages']:
-        if message.type == "tool" and "432 Client Error" in str(message.content):
-            raise Exception(f"432 Client Error detected for {company['investee_company_name']}: {message.content}")
+    # Check for API errors in tool messages
+    check_for_api_errors(response['messages'], company['investee_company_name'])
     
     # Convert messages to a serializable format
     serializable_messages = []
@@ -88,7 +99,7 @@ def process_single_company(company, task, query, research_agent, parser):
     
     return {**company, "founders": response['structured_response'], "tool_calls": tool_calls, "completion_tokens": completion_tokens, "prompt_tokens": prompt_tokens}
 
-def test_csv(task):
+def test_csv(task, start_index: int, batch_size: int = 10):
     query = agent_prompt_mapping[task]
     research_agent = create_react_agent(
     llm,
@@ -97,18 +108,16 @@ def test_csv(task):
     response_format=map_response[query]
 )
     parser = JsonOutputParser(pydantic_object=map_response[query])
-    df = pd.read_csv("others/distinct_selected_companies.csv")
-    # df = pd.read_excel("/Users/wbik/Downloads/label-task/250425aistartup_sdc_crunch_des_fullsample.xls")
-    companies = df.to_dict('records')[:20]
+    # df = pd.read_csv("others/distinct_selected_companies.csv")
+    df = pd.read_excel("/Users/wbik/Downloads/label-task/250425aistartup_sdc_crunch_des_fullsample.xls")
+    companies = df.to_dict('records')[start_index:]
     
     # Create json_messages directory if it doesn't exist
     os.makedirs("json_messages", exist_ok=True)
     
-    batch_size = 20
-    max_workers = batch_size  # Set max_workers equal to batch_size
     total_companies = len(companies)
     print(f"Total companies to process: {total_companies}")
-    print(f"Using {max_workers} parallel workers per batch")
+    print(f"Using {batch_size} parallel workers per batch")
     
     # Process companies in batches
     for batch_start in range(0, total_companies, batch_size):
@@ -118,10 +127,10 @@ def test_csv(task):
         print(f"Processing batch {batch_start//batch_size + 1}: companies {batch_start + 1} to {batch_end}")
         
         result = []
-        api_error_occurred = False
+        api_error_occurred = 0
         
         # Use ThreadPoolExecutor for parallel processing within each batch
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=batch_size) as executor:
             # Submit all company processing tasks
             future_to_company = {
                 executor.submit(process_single_company, company, task, query, research_agent, parser): company 
@@ -136,14 +145,28 @@ def test_csv(task):
                     print(f"Completed: {company_result['investee_company_name']}")
                 except Exception as exc:
                     company = future_to_company[future]
-                    if "432 Client Error" in str(exc):
-                        print(f"432 Client Error detected for {company['investee_company_name']}: {exc}")
-                        api_error_occurred = True
-                        # Cancel remaining futures to stop processing
-                        for remaining_future in future_to_company:
-                            if not remaining_future.done():
-                                remaining_future.cancel()
-                        break
+                    
+                    # Handle different types of API errors differently
+                    if "429 Client Error" in str(exc):
+                        # Rate limit - wait and continue processing
+                        print(f"Rate limit hit for {company['investee_company_name']}: {exc}")
+                        print("Rate limit hit - waiting 60 seconds before continuing...")
+                        api_error_occurred = 2
+                        # for remaining_future in future_to_company:
+                        #     if not remaining_future.done():
+                        #         remaining_future.cancel()
+                        # break
+                        
+                    elif "432 Client Error" in str(exc):
+                        # Client error - stop all processing
+                        print(f"Client error detected for {company['investee_company_name']}: {exc}")
+                        api_error_occurred = 1
+                        # # Cancel remaining futures to stop processing
+                        # for remaining_future in future_to_company:
+                        #     if not remaining_future.done():
+                        #         remaining_future.cancel()
+                        # break
+                        
                     else:
                         print(f"Company {company['investee_company_name']} generated an exception: {exc}")
                         #save in an error json file
@@ -155,27 +178,46 @@ def test_csv(task):
                                 "error_type": type(exc).__name__
                             }
                             json.dump(error_data, f)
-                        
+                        api_error_occurred = 1
+                    # Cancel remaining futures to stop processing
+                    for remaining_future in future_to_company:
+                        if not remaining_future.done():
+                            remaining_future.cancel()
+                    break
         
         # Save successful results from current batch if any
         if result:
             batch_df = pd.DataFrame(result)
             
             # Write header only for the first batch
-            write_header = (batch_start == 0)
-            mode = 'w' if batch_start == 0 else 'a'
+            output_file = f"full_{task}.csv"
+            write_header = not os.path.exists(output_file)
+            mode = 'a' if os.path.exists(output_file) else 'w'
             
-            batch_df.to_csv(f"full_{task}.csv", index=False, mode=mode, header=write_header, encoding='utf-8-sig')
+            batch_df.to_csv(output_file, index=False, mode=mode, header=write_header, encoding='utf-8-sig')
             print(f"Saved {len(result)} successful results from batch {batch_start//batch_size + 1}")
         
         # If API error occurred, stop processing
-        if api_error_occurred:
+        if api_error_occurred != 0:
             print("Stopping processing due to 432 Client Error from Tavily API")
             print(f"Successfully processed {len(result)} companies in the current batch before error")
-            return
+            return api_error_occurred, batch_end
         
         print(f"Batch {batch_start//batch_size + 1} completed and saved to full_{task}.csv")
-
+    return api_error_occurred, batch_end
 
 if __name__ == "__main__":
-    test_csv("ipo_ma")
+    start_index=2084
+    while True:
+        api_error, batch_end = test_csv("executive", start_index=start_index, batch_size=8)
+        if api_error == 1:
+            print("Stopping processing due to 432 Client Error from Tavily API")
+            break
+        elif api_error == 2:
+            print("Rate limit hit, waiting for 120 seconds before continuing...")
+            time.sleep(120)
+            start_index += batch_end
+        else:
+            print("Processing completed successfully")
+            break
+

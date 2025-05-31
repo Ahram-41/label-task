@@ -11,8 +11,8 @@ class Founder(BaseModel):
     cs_degree: int = Field(
         description="if this founder holds a computer science-related degree (including bachelor’s, master’s, doctoral, or other qualifications), it is 1; otherwise 0. If no information of educational qualifications, assign 2."
     )
-    graduated_university: Literal["Others", "Unknown", "MIT", "University of Cambridge", "University of Oxford", "Harvard University", "Stanford University", "Imperial College London", "ETH Zurich", "National University of Singapore (NUS)", "University College London (UCL)", "University of California, Berkeley (UCB)"] = Field(
-        description="Founder's Graduated universities. Should be one of the provided options."
+    graduated_university: str = Field(
+        description="full name of the Graduated University of the Founder. If no information of graduated university, assign 'Unknown'."
     )
     prior_success_ipo: int = Field(
         description="if this founder has previous experience in founding companies that successfully exited through an IPO in the past, it is 1; otherwise, it is 0."
@@ -36,7 +36,7 @@ class Executive(BaseModel):
     
 class Company_Executives_Response(BaseModel):
     executives: List[Executive] = Field(
-        description="a list of the executive team members' information."
+        description="a list of all executive team members' information."
     )
 
 class Products(BaseModel):
