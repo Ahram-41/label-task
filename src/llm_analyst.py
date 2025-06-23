@@ -123,7 +123,7 @@ async def llm_articles(articles: List[Dict], model, prompt_name, batch_size: int
         batch = articles[i:i + batch_size]
         batch_results = []
         
-        batch_inputs = [{"content": article['investee_company_long_business_d']} for article in batch]
+        batch_inputs = [{"content":"Company Name: " + article['investee_company_name'] + "\n" + "Company Description: " + article['investee_company_long_business_d']} for article in batch]
         try:
             # Process the batch
             batch_responses = await batch_process_text(batch_inputs)
