@@ -26,6 +26,7 @@ dependencies = [
     "xlrd>=2.0.1",
     "selenium>=4.32.0",
     "webdriver-manager>=4.0.2",
+    "langfuse>=3.0.3",
 ]
 
 [project.optional-dependencies]
