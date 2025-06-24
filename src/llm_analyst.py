@@ -16,9 +16,10 @@ from prompt import *
 from src.basedata import *
 from src.llm_config import get_llm_model
 
-langfuse_handler = CallbackHandler()
-
 load_dotenv()
+
+# Initialize langfuse handler only if LANGFUSE_SECRET_KEY is present
+langfuse_handler = CallbackHandler() if os.getenv("LANGFUSE_SECRET_KEY") else None
 map_response = {
     CORE_OR_GENERAL_AI_APPLICATION: Core_or_General_AI_Application_Response,
     IS_DATA_CENTRIC: Is_Data_Centric_Response,
@@ -119,8 +120,9 @@ async def llm_articles(
     expected_keys = map_response[prompt_name].schema()["properties"].keys()
 
     async def batch_process_text(texts: List):
+        config = {"callbacks": [langfuse_handler]} if langfuse_handler else {}
         return await chain.abatch(
-            texts, return_exceptions=True, config={"callbacks": [langfuse_handler]}
+            texts, return_exceptions=True, config=config
         )  # return exceptions to handle errors
 
     ans = []
@@ -143,7 +145,8 @@ async def llm_articles(
             # Process the batch
             batch_responses = await batch_process_text(batch_inputs)
             # Process responses and add metadata
-            langfuse_handler.client.flush()
+            if langfuse_handler:
+                langfuse_handler.client.flush()
             for j, response in enumerate(batch_responses):
                 article = batch[j]
                 print(f"\n=== Article {i + j + 1}/{len(articles)} ===")
